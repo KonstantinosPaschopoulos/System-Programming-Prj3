@@ -10,10 +10,13 @@
 
 int main(int argc, char **argv){
   int i, server_port, sock, portNum, workerThreads, bufferSize;
+  uint16_t port_send;
+  uint32_t ip_send;
+  char *command_buffer;
   struct sockaddr_in server;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   struct hostent *rem;
-  char dirName[250], serverIP[250], buf[3];
+  char dirName[250], serverIP[250];
 
 
   // Parsing the input from the command line
@@ -85,8 +88,22 @@ int main(int argc, char **argv){
     exit(2);
   }
 
-  strcpy(buf, "LOG");
-  write(sock, buf, 3);
+  command_buffer = (char*)calloc(11, sizeof(char));
+  if (command_buffer == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+
+  // LOG ON message
+  strcpy(command_buffer, "LOG_ON");
+  if (write(sock, command_buffer, 11) < 0)
+  {
+    perror("writing LOG_ON failed");
+    exit(2);
+  }
+  port_send = htons(portNum);
+  write(sock, &port_send, sizeof(port_send));
 
   close(sock);
 
