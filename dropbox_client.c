@@ -12,12 +12,11 @@ int main(int argc, char **argv){
   int i, server_port, sock, portNum, workerThreads, bufferSize;
   uint16_t port_send;
   uint32_t ip_send;
-  char *command_buffer;
-  struct sockaddr_in server;
+  struct sockaddr_in server, temp;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
-  struct hostent *rem;
-  char dirName[250], serverIP[250];
-
+  struct hostent *rem, *host_entry;
+  char *command_buffer, *IPbuffer;
+  char dirName[256], serverIP[256], hostbuffer[256];
 
   // Parsing the input from the command line
   if (argc != 13)
@@ -97,13 +96,35 @@ int main(int argc, char **argv){
 
   // LOG ON message
   strcpy(command_buffer, "LOG_ON");
-  if (write(sock, command_buffer, 11) < 0)
+  if (write(sock, command_buffer, 6) < 0)
   {
     perror("writing LOG_ON failed");
     exit(2);
   }
+
   port_send = htons(portNum);
   write(sock, &port_send, sizeof(port_send));
+
+  // Find the IP address of the client
+  if (gethostname(hostbuffer, sizeof(hostbuffer)) == -1)
+  {
+    perror("gethostname failed");
+    exit(2);
+  }
+  if ((host_entry = gethostbyname(hostbuffer)) == NULL)
+  {
+    perror("gethostbyname failed");
+    exit(2);
+  }
+  IPbuffer = inet_ntoa(*((struct in_addr*)host_entry->h_addr_list[0]));
+  if (IPbuffer == NULL)
+  {
+    perror("inet_ntoa failed miserably");
+    exit(2);
+  }
+  inet_pton(AF_INET, IPbuffer, &(temp.sin_addr));
+  ip_send = temp.sin_addr.s_addr;
+  write(sock, &ip_send, sizeof(ip_send));
 
   close(sock);
 

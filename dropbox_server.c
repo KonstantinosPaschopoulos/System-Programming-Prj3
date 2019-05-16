@@ -8,11 +8,13 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include "types.h"
 
 int main(int argc, char **argv){
   int portNum, sock, newsock, optval = 1, hostname, i;
-  int activity, clients[45], max, sd;
+  int activity, clients[MAX_CLIENTS], max, sd;
   uint16_t port_recv;
+  uint32_t ip_recv;
   char hostbuffer[256];
   char *IPbuffer, *command_buffer;
   struct hostent *host_entry;
@@ -84,7 +86,7 @@ int main(int argc, char **argv){
           portNum, IPbuffer, hostbuffer);
 
   // Setting up select
-  for (i = 0; i < 45; i++)
+  for (i = 0; i < MAX_CLIENTS; i++)
   {
     clients[i] = 0;
   }
@@ -105,7 +107,7 @@ int main(int argc, char **argv){
     max = sock;
 
     // Updating the set
-    for (i = 0; i < 45; i++)
+    for (i = 0; i < MAX_CLIENTS; i++)
     {
       sd = clients[i];
 
@@ -141,7 +143,7 @@ int main(int argc, char **argv){
       printf("A client has connected to the server.\n");
 
       // Add the client to the list of sockets
-      for (i = 0; i < 45; i++)
+      for (i = 0; i < MAX_CLIENTS; i++)
       {
         if (clients[i] == 0)
         {
@@ -152,14 +154,14 @@ int main(int argc, char **argv){
     }
 
     // I/O
-    for (i = 0; i < 45; i++)
+    for (i = 0; i < MAX_CLIENTS; i++)
     {
       sd = clients[i];
 
       if (FD_ISSET(sd, &readfds))
       {
         // Someone disconnected
-        if (read(sd, command_buffer, 11) == 0)
+        if (read(sd, command_buffer, 6) == 0)
         {
           close(sd);
           clients[i] = 0;
@@ -171,9 +173,14 @@ int main(int argc, char **argv){
           {
             printf("YEET\n");
           }
+          
           read(newsock, &port_recv, sizeof(port_recv));
           port_recv = ntohs(port_recv);
-          printf("Read: %s %d\n", command_buffer, port_recv);
+
+          read(newsock, &ip_recv, sizeof(ip_recv));
+          ip_recv = ntohl(ip_recv);
+
+          printf("Client: %s %d %d\n", command_buffer, port_recv, ip_recv);
         }
       }
     }
