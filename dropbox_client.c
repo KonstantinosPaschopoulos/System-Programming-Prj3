@@ -68,10 +68,16 @@ int main(int argc, char **argv){
     exit(2);
   }
 
+  // Finding the server address
+  if ((rem = gethostbyname(serverIP)) == NULL)
+  {
+    perror("gethostbyname failed");
+    exit(2);
+  }
+
   // Connecting to the server
   server.sin_family = AF_INET;
-  // server.sin_addr.s_addr = inet_addr("127.0.0.1");
-  server.sin_addr.s_addr = inet_addr(serverIP);
+  memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
   server.sin_port = htons(server_port);
   if (connect(sock, serverptr, sizeof(server)) < 0)
   {

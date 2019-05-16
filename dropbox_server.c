@@ -6,11 +6,14 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
 int main(int argc, char **argv){
   pid_t new_connection;
-  int portNum, sock, newsock, len, optval = 1;
-  char buffer[1001];
+  int portNum, sock, newsock, len, optval = 1, hostname;
+  char buffer[1001], hostbuffer[400];
+  char *IPbuffer;
+  struct hostent *host_entry;
   struct sockaddr_in server, client;
   socklen_t clientlen;
   struct sockaddr *serverptr = (struct sockaddr *)&server;
@@ -53,8 +56,27 @@ int main(int argc, char **argv){
     exit(2);
   }
 
-  printf("Listening for connections to port %d\n", portNum);
+  // Printing the server's id
+  if ((hostname = gethostname(hostbuffer, sizeof(hostbuffer))) == -1)
+  {
+    perror("gethostname failed");
+    exit(2);
+  }
+  if ((host_entry = gethostbyname(hostbuffer)) == NULL)
+  {
+    perror("gethostbyname failed");
+    exit(2);
+  }
+  IPbuffer = inet_ntoa(*((struct in_addr*)host_entry->h_addr_list[0]));
+  if (IPbuffer == NULL)
+  {
+    perror("inet_ntoa failed miserably");
+    exit(2);
+  }
+  printf("Server is ready.\nPort: %d\nIP address: %s\nHostname: %s\n\n",
+          portNum, IPbuffer, hostbuffer);
 
+  // Accepting messages from the clients
   while(1)
   {
     // Accept new connection
