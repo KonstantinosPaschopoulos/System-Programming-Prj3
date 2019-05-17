@@ -78,6 +78,7 @@ void getclients(int newsock, connected_list *connected_clients){
   // uint32_t ip_recv;
   connected_node *curr_client = connected_clients->nodes;
   int count = 0;
+  char *buffer, *count_str;
 
   // Counting how many clients are connected
   while (curr_client != NULL)
@@ -86,7 +87,26 @@ void getclients(int newsock, connected_list *connected_clients){
     curr_client = curr_client->next;
   }
 
+  buffer = (char*)calloc(11, sizeof(char));
+  if (buffer == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  count_str = (char*)calloc(12, sizeof(char));
+  if (count_str == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+
   // Write CLIENT_LIST N
+  strcpy(buffer, "CLIENT_LIST");
+  write(newsock, buffer, 11);
+  memset(buffer, 0, 11);
+
+  sprintf(count_str, "%d", count);
+  write(newsock, count_str, 12);
 
   // Sending the id of every connected client
   curr_client = connected_clients->nodes;
@@ -97,6 +117,9 @@ void getclients(int newsock, connected_list *connected_clients){
 
     curr_client = curr_client->next;
   }
+
+  free(buffer);
+  free(count_str);
 }
 
 int main(int argc, char **argv){
@@ -281,7 +304,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(command_buffer, "LOG_OFF") == 0)
           {
-
+            printf("GOT IT\n");
           }
         }
       }

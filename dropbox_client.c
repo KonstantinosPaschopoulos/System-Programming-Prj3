@@ -7,17 +7,19 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include "types.h"
 
 int main(int argc, char **argv){
-  int i, server_port, sock, portNum, workerThreads, bufferSize, comm, optval = 1;
+  int i, server_port, server_sock, portNum, workerThreads, bufferSize, comm, optval = 1, x;
   uint16_t port_send;
   uint32_t ip_send;
   struct sockaddr_in server, temp, comm_addr;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   struct sockaddr *commptr = (struct sockaddr*)&comm_addr;
   struct hostent *rem, *host_entry;
-  char *command_buffer, *IPbuffer;
+  char *command_buffer, *IPbuffer, *number_recv;
   char dirName[256], serverIP[256], hostbuffer[256];
+  connected_list *client_list;
 
   // Parsing the input from the command line
   if (argc != 13)
@@ -64,7 +66,7 @@ int main(int argc, char **argv){
     }
   }
 
-  // Creating a socket to communicate with other clients
+  // Creating the socket to communicate with other clients
   if ((comm = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
     perror("Socket creation");
@@ -95,10 +97,8 @@ int main(int argc, char **argv){
     exit(2);
   }
 
-  printf("The client is ready.\n");
-
   // Creating the socket to communicate with the server
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
     perror("Creating socket");
     exit(2);
@@ -115,7 +115,7 @@ int main(int argc, char **argv){
   server.sin_family = AF_INET;
   memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
   server.sin_port = htons(server_port);
-  if (connect(sock, serverptr, sizeof(server)) < 0)
+  if (connect(server_sock, serverptr, sizeof(server)) < 0)
   {
     perror("Connecting to server");
     exit(2);
@@ -127,19 +127,35 @@ int main(int argc, char **argv){
     perror("Calloc failed");
     exit(2);
   }
+  number_recv = (char*)calloc(12, sizeof(char));
+  if (number_recv == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  client_list = (connected_list*)malloc(sizeof(connected_list));
+  if (client_list == NULL)
+  {
+    perror("Malloc failed");
+    exit(2);
+  }
+  client_list->nodes = NULL;
 
-  // LOG ON message
+  printf("The client is ready.\n");
+
+  // LOG_ON message
   strcpy(command_buffer, "LOG_ON");
-  if (write(sock, command_buffer, 11) < 0)
+  if (write(server_sock, command_buffer, 11) < 0)
   {
     perror("writing LOG_ON failed");
     exit(2);
   }
+  memset(command_buffer, 0, 11);
 
   port_send = htons(portNum);
-  write(sock, &port_send, sizeof(port_send));
+  write(server_sock, &port_send, sizeof(port_send));
 
-  // Find the IP address of the client
+  // Find the IP address of the client and send it
   if (gethostname(hostbuffer, sizeof(hostbuffer)) == -1)
   {
     perror("gethostname failed");
@@ -158,9 +174,40 @@ int main(int argc, char **argv){
   }
   inet_pton(AF_INET, IPbuffer, &(temp.sin_addr));
   ip_send = temp.sin_addr.s_addr;
-  write(sock, &ip_send, sizeof(ip_send));
+  write(server_sock, &ip_send, sizeof(ip_send));
 
-  close(sock);
+  // GET_CLIENTS message
+  strcpy(command_buffer, "GET_CLIENTS");
+  write(server_sock, command_buffer, 11);
+  memset(command_buffer, 0, 11);
+
+  read(server_sock, command_buffer, 11);
+  if (strcmp(command_buffer, "CLIENT_LIST") == 0)
+  {
+    read(server_sock, number_recv, 12);
+    x = atoi(number_recv);
+    memset(number_recv, 0, 12);
+
+    printf("NUMBER %d\n", x);
+  }
+  else
+  {
+    printf("GET_CLIENTS failed\n");
+    exit(3);
+  }
+
+  getchar();
+  printf("Loggin off\n");
+
+  // LOG_OFF message
+  strcpy(command_buffer, "LOG_OFF");
+  write(server_sock, command_buffer, 11);
+  memset(command_buffer, 0, 11);
+
+  close(server_sock);
+  close(comm);
+  free(command_buffer);
+  free(number_recv);
 
   return 0;
 }
