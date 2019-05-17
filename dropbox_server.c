@@ -10,11 +10,72 @@
 #include <errno.h>
 #include "types.h"
 
+// Updates the list and sends the USER_ON messages
+void logon(int newsock, connected_list *connected_clients){
+  uint16_t port_recv;
+  uint32_t ip_recv;
+  connected_node *curr_client = connected_clients->nodes;
+  connected_node *new_client;
+
+  // Receiving the IP and the port
+  read(newsock, &port_recv, sizeof(port_recv));
+  port_recv = ntohs(port_recv);
+
+  read(newsock, &ip_recv, sizeof(ip_recv));
+  ip_recv = ntohl(ip_recv);
+
+  // struct in_addr ip_addr;
+  // ip_addr.s_addr = ip_recv;
+  // // Inet_ntoa needs to be in network byte order, so no need to use ntohl
+  // printf("IP is %s\n", inet_ntoa(ip_addr));
+
+  // Making sure the client is not already connected
+  while (curr_client != NULL)
+  {
+    if ((curr_client->clientIP == ip_recv) && (curr_client->clientPort == port_recv))
+    {
+      printf("The client from: %d %d, is already connected.\n", port_recv, ip_recv);
+      return;
+    }
+
+    curr_client = curr_client->next;
+  }
+
+  printf("Client connected from: %d %d\n", port_recv, ip_recv);
+
+  //Creating a new client node
+  new_client = (connected_node*)malloc(sizeof(connected_node));
+  if (new_client == NULL)
+  {
+    perror("Malloc failed");
+    exit(2);
+  }
+  new_client->clientIP = ip_recv;
+  new_client->clientPort = port_recv;
+  new_client->next = NULL;
+
+  // Updating the list
+  if (connected_clients->nodes == NULL)
+  {
+    connected_clients->nodes = new_client;
+  }
+  else
+  {
+    curr_client = connected_clients->nodes;
+    while ((curr_client->next) != NULL)
+    {
+      curr_client = curr_client->next;
+    }
+
+    curr_client->next = new_client;
+  }
+
+  // Sending USER_ON messages to every connected client
+}
+
 int main(int argc, char **argv){
   int portNum, sock, newsock, optval = 1, hostname, i;
   int activity, clients[MAX_CLIENTS], max, sd;
-  uint16_t port_recv;
-  uint32_t ip_recv;
   char hostbuffer[256];
   char *IPbuffer, *command_buffer;
   struct hostent *host_entry;
@@ -23,6 +84,7 @@ int main(int argc, char **argv){
   struct sockaddr *clientptr = (struct sockaddr *)&client;
   socklen_t clientlen;
   fd_set readfds;
+  connected_list *connected_clients;
 
   // Parsing the input from the command line
   if (argc != 3)
@@ -103,6 +165,14 @@ int main(int argc, char **argv){
     exit(2);
   }
 
+  connected_clients = (connected_list*)malloc(sizeof(connected_list));
+  if (connected_clients == NULL)
+  {
+    perror("Malloc failed");
+    exit(2);
+  }
+  connected_clients->nodes = NULL;
+
   // Accepting messages from the clients
   while(1)
   {
@@ -173,19 +243,20 @@ int main(int argc, char **argv){
         }
         else
         {
-          // Read the message that was sent
+          // Read the command that was sent
+          // and call the right function to deal with it
           if (strcmp(command_buffer, "LOG_ON") == 0)
           {
-            printf("YEET\n");
+            logon(newsock, connected_clients);
           }
+          else if (strcmp(command_buffer, "GET_CLIENTS") == 0)
+          {
 
-          read(newsock, &port_recv, sizeof(port_recv));
-          port_recv = ntohs(port_recv);
+          }
+          else if (strcmp(command_buffer, "LOG_OFF") == 0)
+          {
 
-          read(newsock, &ip_recv, sizeof(ip_recv));
-          ip_recv = ntohl(ip_recv);
-
-          printf("Client: %s %d %d\n", command_buffer, port_recv, ip_recv);
+          }
         }
       }
     }
