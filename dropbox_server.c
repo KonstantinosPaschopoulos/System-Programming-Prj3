@@ -70,7 +70,33 @@ void logon(int newsock, connected_list *connected_clients){
     curr_client->next = new_client;
   }
 
-  // Sending USER_ON messages to every connected client
+  // TODO Sending USER_ON messages to every connected client
+}
+
+void getclients(int newsock, connected_list *connected_clients){
+  // uint16_t port_recv;
+  // uint32_t ip_recv;
+  connected_node *curr_client = connected_clients->nodes;
+  int count = 0;
+
+  // Counting how many clients are connected
+  while (curr_client != NULL)
+  {
+    count++;
+    curr_client = curr_client->next;
+  }
+
+  // Write CLIENT_LIST N
+
+  // Sending the id of every connected client
+  curr_client = connected_clients->nodes;
+  while (curr_client != NULL)
+  {
+    printf("%d %d\n", curr_client->clientIP, curr_client->clientPort);
+    // Transform to network byte order before sending
+
+    curr_client = curr_client->next;
+  }
 }
 
 int main(int argc, char **argv){
@@ -251,7 +277,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(command_buffer, "GET_CLIENTS") == 0)
           {
-
+            getclients(newsock, connected_clients);
           }
           else if (strcmp(command_buffer, "LOG_OFF") == 0)
           {

@@ -9,11 +9,12 @@
 #include <arpa/inet.h>
 
 int main(int argc, char **argv){
-  int i, server_port, sock, portNum, workerThreads, bufferSize;
+  int i, server_port, sock, portNum, workerThreads, bufferSize, comm, optval = 1;
   uint16_t port_send;
   uint32_t ip_send;
-  struct sockaddr_in server, temp;
+  struct sockaddr_in server, temp, comm_addr;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
+  struct sockaddr *commptr = (struct sockaddr*)&comm_addr;
   struct hostent *rem, *host_entry;
   char *command_buffer, *IPbuffer;
   char dirName[256], serverIP[256], hostbuffer[256];
@@ -63,14 +64,47 @@ int main(int argc, char **argv){
     }
   }
 
-  // Creating the socket
+  // Creating a socket to communicate with other clients
+  if ((comm = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  {
+    perror("Socket creation");
+    exit(2);
+  }
+
+  // Reusing the connections
+  if (setsockopt(comm, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
+  {
+    perror("setsockopt failed");
+    exit(2);
+  }
+
+  // Binding the socket
+  comm_addr.sin_family = AF_INET;
+  comm_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  comm_addr.sin_port = htons(portNum);
+  if (bind(comm, commptr, sizeof(comm_addr)) < 0)
+  {
+    perror("Binding socket");
+    exit(2);
+  }
+
+  // Listening for connections
+  if (listen(comm, 5) < 0)
+  {
+    perror("Listening");
+    exit(2);
+  }
+
+  printf("The client is ready.\n");
+
+  // Creating the socket to communicate with the server
   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
     perror("Creating socket");
     exit(2);
   }
 
-  // Finding the server address
+  // Finding the server's address
   if ((rem = gethostbyname(serverIP)) == NULL)
   {
     perror("gethostbyname failed");
