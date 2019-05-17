@@ -11,8 +11,8 @@
 
 int main(int argc, char **argv){
   int i, server_port, server_sock, portNum, workerThreads, bufferSize, comm, optval = 1, x;
-  uint16_t port_send;
-  uint32_t ip_send;
+  uint16_t port_net;
+  uint32_t ip_net;
   struct sockaddr_in server, temp, comm_addr;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   struct sockaddr *commptr = (struct sockaddr*)&comm_addr;
@@ -20,6 +20,8 @@ int main(int argc, char **argv){
   char *command_buffer, *IPbuffer, *number_recv;
   char dirName[256], serverIP[256], hostbuffer[256];
   connected_list *client_list;
+  connected_node *curr_client;
+  connected_node *new_client;
 
   // Parsing the input from the command line
   if (argc != 13)
@@ -152,8 +154,8 @@ int main(int argc, char **argv){
   }
   memset(command_buffer, 0, 11);
 
-  port_send = htons(portNum);
-  write(server_sock, &port_send, sizeof(port_send));
+  port_net = htons(portNum);
+  write(server_sock, &port_net, sizeof(port_net));
 
   // Find the IP address of the client and send it
   if (gethostname(hostbuffer, sizeof(hostbuffer)) == -1)
@@ -173,8 +175,8 @@ int main(int argc, char **argv){
     exit(2);
   }
   inet_pton(AF_INET, IPbuffer, &(temp.sin_addr));
-  ip_send = temp.sin_addr.s_addr;
-  write(server_sock, &ip_send, sizeof(ip_send));
+  ip_net = temp.sin_addr.s_addr;
+  write(server_sock, &ip_net, sizeof(ip_net));
 
   // GET_CLIENTS message
   strcpy(command_buffer, "GET_CLIENTS");
@@ -188,7 +190,44 @@ int main(int argc, char **argv){
     x = atoi(number_recv);
     memset(number_recv, 0, 12);
 
-    printf("NUMBER %d\n", x);
+    printf("Connected clients: %d\n", x);
+    for (i = 0; i < x; i++)
+    {
+      // Receiving the IP and the port
+      read(server_sock, &port_net, sizeof(port_net));
+      port_net = ntohs(port_net);
+      read(server_sock, &ip_net, sizeof(ip_net));
+      ip_net = ntohl(ip_net);
+
+      printf("%d %d\n", port_net, ip_net);
+
+      //Creating a new client node
+      new_client = (connected_node*)malloc(sizeof(connected_node));
+      if (new_client == NULL)
+      {
+        perror("Malloc failed");
+        exit(2);
+      }
+      new_client->clientIP = ip_net;
+      new_client->clientPort = port_net;
+      new_client->next = NULL;
+
+      // Updating the list
+      if (client_list->nodes == NULL)
+      {
+        client_list->nodes = new_client;
+      }
+      else
+      {
+        curr_client = client_list->nodes;
+        while ((curr_client->next) != NULL)
+        {
+          curr_client = curr_client->next;
+        }
+
+        curr_client->next = new_client;
+      }
+    }
   }
   else
   {

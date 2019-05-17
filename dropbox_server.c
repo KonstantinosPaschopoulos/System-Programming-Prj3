@@ -20,7 +20,6 @@ void logon(int newsock, connected_list *connected_clients){
   // Receiving the IP and the port
   read(newsock, &port_recv, sizeof(port_recv));
   port_recv = ntohs(port_recv);
-
   read(newsock, &ip_recv, sizeof(ip_recv));
   ip_recv = ntohl(ip_recv);
 
@@ -74,8 +73,8 @@ void logon(int newsock, connected_list *connected_clients){
 }
 
 void getclients(int newsock, connected_list *connected_clients){
-  // uint16_t port_recv;
-  // uint32_t ip_recv;
+  uint16_t port_net;
+  uint32_t ip_net;
   connected_node *curr_client = connected_clients->nodes;
   int count = 0;
   char *buffer, *count_str;
@@ -112,8 +111,12 @@ void getclients(int newsock, connected_list *connected_clients){
   curr_client = connected_clients->nodes;
   while (curr_client != NULL)
   {
-    printf("%d %d\n", curr_client->clientIP, curr_client->clientPort);
+    printf("%d %d\n", curr_client->clientPort, curr_client->clientIP);
     // Transform to network byte order before sending
+    port_net = htons(curr_client->clientPort);
+    write(newsock, &port_net, sizeof(port_net));
+    ip_net = htonl(curr_client->clientIP);
+    write(newsock, &ip_net, sizeof(ip_net));
 
     curr_client = curr_client->next;
   }
