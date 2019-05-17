@@ -19,13 +19,18 @@ int main(int argc, char **argv){
   char *IPbuffer, *command_buffer;
   struct hostent *host_entry;
   struct sockaddr_in server, client;
-  socklen_t clientlen;
   struct sockaddr *serverptr = (struct sockaddr *)&server;
   struct sockaddr *clientptr = (struct sockaddr *)&client;
+  socklen_t clientlen;
   fd_set readfds;
 
   // Parsing the input from the command line
   if (argc != 3)
+  {
+    printf("Usage: ./dropbox_server -p portNum\n");
+    exit(1);
+  }
+  if (strcmp(argv[1], "-p") != 0)
   {
     printf("Usage: ./dropbox_server -p portNum\n");
     exit(1);
@@ -161,7 +166,7 @@ int main(int argc, char **argv){
       if (FD_ISSET(sd, &readfds))
       {
         // Someone disconnected
-        if (read(sd, command_buffer, 6) == 0)
+        if (read(sd, command_buffer, 11) == 0)
         {
           close(sd);
           clients[i] = 0;
@@ -173,7 +178,7 @@ int main(int argc, char **argv){
           {
             printf("YEET\n");
           }
-          
+
           read(newsock, &port_recv, sizeof(port_recv));
           port_recv = ntohs(port_recv);
 

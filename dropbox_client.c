@@ -96,7 +96,7 @@ int main(int argc, char **argv){
 
   // LOG ON message
   strcpy(command_buffer, "LOG_ON");
-  if (write(sock, command_buffer, 6) < 0)
+  if (write(sock, command_buffer, 11) < 0)
   {
     perror("writing LOG_ON failed");
     exit(2);
