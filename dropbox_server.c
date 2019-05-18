@@ -112,7 +112,6 @@ void getclients(int newsock, connected_list *connected_clients){
   while (curr_client != NULL)
   {
     printf("%d %d\n", curr_client->clientPort, curr_client->clientIP);
-    // Transform to network byte order before sending
     port_net = htons(curr_client->clientPort);
     write(newsock, &port_net, sizeof(port_net));
     ip_net = htonl(curr_client->clientIP);

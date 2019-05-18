@@ -7,10 +7,80 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+#include <signal.h>
 #include "types.h"
 
+pthread_mutex_t mtx;
+pthread_cond_t cond_nonempty;
+pthread_cond_t cond_nonfull;
+pool_t pool;
+volatile sig_atomic_t flag = 1;
+
+void initialize(pool_t *pool, int bufferSize){
+  pool->buffer = (circular_node*)malloc(bufferSize * sizeof(circular_node));
+  if (pool->buffer == NULL)
+  {
+    perror("Malloc failed");
+    exit(2);
+  }
+  pool->start = 0;
+  pool->end = -1;
+  pool->count = 0;
+  pool->size = bufferSize;
+}
+
+void place(pool_t *pool, circular_node data){
+  // Waiting until there is room in the buffer
+  pthread_mutex_lock(&mtx);
+  while (pool->count >= pool->size)
+  {
+    pthread_cond_wait(&cond_nonfull, &mtx);
+  }
+
+  // Placing the item in the buffer
+  pool->end = (pool->end + 1) % pool->size;
+  pool->buffer[pool->end] = data;
+  pool->count++;
+  pthread_mutex_unlock(&mtx);
+}
+
+circular_node obtain(pool_t *pool){
+  circular_node node;
+
+  // Waiting until there is something in the buffer
+  pthread_mutex_lock(&mtx);
+  while (pool->count <= 0)
+  {
+    pthread_cond_wait(&cond_nonempty, &mtx);
+  }
+
+  // Removing an item
+  node = pool->buffer[pool->start];
+  pool->start = (pool->start + 1) % pool->size;
+  pool->count--;
+  pthread_mutex_unlock(&mtx);
+
+  return node;
+}
+
+void * worker(void *ptr){
+  printf("Thread has been created\n");
+  circular_node node;
+
+  while (flag == 1)
+  {
+    node = obtain(&pool);
+
+    printf("%d\n", node.port);
+  }
+
+  pthread_exit(0);
+}
+
 int main(int argc, char **argv){
-  int i, server_port, server_sock, portNum, workerThreads, bufferSize, comm, optval = 1, x;
+  int i, server_port, server_sock, portNum, serverNum;
+  int workerThreads, bufferSize, comm, optval = 1, x;
   uint16_t port_net;
   uint32_t ip_net;
   struct sockaddr_in server, temp, comm_addr;
@@ -20,8 +90,8 @@ int main(int argc, char **argv){
   char *command_buffer, *IPbuffer, *number_recv;
   char dirName[256], serverIP[256], hostbuffer[256];
   connected_list *client_list;
-  connected_node *curr_client;
-  connected_node *new_client;
+  connected_node *curr_client, *new_client;
+  pthread_t thr;
 
   // Parsing the input from the command line
   if (argc != 13)
@@ -142,6 +212,7 @@ int main(int argc, char **argv){
     exit(2);
   }
   client_list->nodes = NULL;
+  // TODO make list thread safe
 
   printf("The client is ready.\n");
 
@@ -176,6 +247,7 @@ int main(int argc, char **argv){
   }
   inet_pton(AF_INET, IPbuffer, &(temp.sin_addr));
   ip_net = temp.sin_addr.s_addr;
+  serverNum = temp.sin_addr.s_addr;
   write(server_sock, &ip_net, sizeof(ip_net));
 
   // GET_CLIENTS message
@@ -200,6 +272,11 @@ int main(int argc, char **argv){
       ip_net = ntohl(ip_net);
 
       printf("%d %d\n", port_net, ip_net);
+
+      if ((port_net == portNum) && (ip_net == serverNum))
+      {
+        continue;
+      }
 
       //Creating a new client node
       new_client = (connected_node*)malloc(sizeof(connected_node));
@@ -235,13 +312,36 @@ int main(int argc, char **argv){
     exit(3);
   }
 
+  // Initializing the buffer and the threads
+  initialize(&pool, bufferSize);
+  pthread_mutex_init(&mtx, 0);
+  pthread_cond_init(&cond_nonempty, 0);
+  pthread_cond_init(&cond_nonfull, 0);
+  for (i = 0; i < workerThreads; i++)
+  {
+    pthread_create(&thr, 0, worker, 0);
+  }
+
+  // The client is ready to sync with the other clients
+  
+
   getchar();
   printf("Loggin off\n");
+
+  flag = 0;
+
+  for (i = 0; i < workerThreads; i++)
+  {
+    // Maybe array?
+    // pthread_join(thr, 0);
+  }
+  pthread_cond_destroy(&cond_nonempty);
+  pthread_cond_destroy(&cond_nonfull);
+  pthread_mutex_destroy(&mtx);
 
   // LOG_OFF message
   strcpy(command_buffer, "LOG_OFF");
   write(server_sock, command_buffer, 11);
-  memset(command_buffer, 0, 11);
 
   close(server_sock);
   close(comm);
