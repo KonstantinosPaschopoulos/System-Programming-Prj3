@@ -8,6 +8,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <signal.h>
 #include "types.h"
 #include "server_functions.h"
 
@@ -37,7 +38,8 @@ int main(int argc, char **argv){
   }
   portNum = atoi(argv[2]);
 
-  // TODO add signal handler
+  // TODO Dealing with SIGPIPE signal
+  signal(SIGPIPE, SIG_IGN);
 
   // Creating the socket
   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -102,7 +104,6 @@ int main(int argc, char **argv){
     perror("Calloc failed");
     exit(2);
   }
-
   connected_clients = (connected_list*)malloc(sizeof(connected_list));
   if (connected_clients == NULL)
   {
@@ -153,8 +154,6 @@ int main(int argc, char **argv){
         exit(2);
       }
 
-      printf("A client has connected to the server.\n");
-
       // Add the client to the list of sockets
       for (i = 0; i < MAX_CLIENTS; i++)
       {
@@ -166,7 +165,7 @@ int main(int argc, char **argv){
       }
     }
 
-    // I/O
+    // I/O happened
     for (i = 0; i < MAX_CLIENTS; i++)
     {
       sd = clients[i];
@@ -181,8 +180,7 @@ int main(int argc, char **argv){
         }
         else
         {
-          // Read the command that was sent
-          // and call the right function to deal with it
+          // Responding to client requests
           if (strcmp(command_buffer, "LOG_ON") == 0)
           {
             logon(newsock, connected_clients);
@@ -193,7 +191,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(command_buffer, "LOG_OFF") == 0)
           {
-            printf("GOT IT\n");
+            logoff(newsock, connected_clients);
           }
         }
       }

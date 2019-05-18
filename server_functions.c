@@ -122,3 +122,40 @@ void getclients(int newsock, connected_list *connected_clients){
   free(buffer);
   free(count_str);
 }
+
+void logoff(int newsock, connected_list *connected_clients){
+  printf("LOGOFF\n");
+  /*
+  connected_node *temp = connected_clients->nodes, *prev;
+
+  // Checking if it the head
+  if ((temp != NULL) && (temp->sock == newsock))
+  {
+    printf("Client: %d %d, is loggin off.\n", temp->clientPort, temp->clientIP);
+    connected_clients->nodes = temp->next;
+    free(temp);
+    return;
+  }
+
+  // Searching for the correct node
+  while ((temp != NULL) && (temp->sock != newsock))
+  {
+    prev = temp;
+    temp = temp->next;
+  }
+
+  // The client was not connected to the server
+  if (temp == NULL)
+  {
+    printf("ERROR_IP_PORT_NOT_FOUND_IN_LIST\n");
+    return;
+  }
+
+  // Removing the client from the list
+  printf("Client: %d %d, is loggin off.\n", temp->clientPort, temp->clientIP);
+  prev->next = temp->next;
+  free(temp);
+  */
+
+  // TODO Sending USER_OFF messages to every connected client
+}
