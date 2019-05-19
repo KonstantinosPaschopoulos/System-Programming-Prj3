@@ -22,11 +22,6 @@ void logon(int newsock, connected_list *connected_clients){
   read(newsock, &ip_recv, sizeof(ip_recv));
   ip_recv = ntohl(ip_recv);
 
-  // struct in_addr ip_addr;
-  // ip_addr.s_addr = ip_recv;
-  // // Inet_ntoa needs to be in network byte order, so no need to use ntohl
-  // printf("IP is %s\n", inet_ntoa(ip_addr));
-
   // Making sure the client is not already connected
   while (curr_client != NULL)
   {
