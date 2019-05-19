@@ -124,7 +124,16 @@ void getclients(int newsock, connected_list *connected_clients){
 }
 
 void logoff(int newsock, connected_list *connected_clients){
-  printf("LOGOFF\n");
+  uint16_t port_recv;
+  uint32_t ip_recv;
+
+  // Receiving the IP and the port
+  read(newsock, &port_recv, sizeof(port_recv));
+  port_recv = ntohs(port_recv);
+  read(newsock, &ip_recv, sizeof(ip_recv));
+  ip_recv = ntohl(ip_recv);
+
+  printf("Client: %d %d, has logged off.\n", port_recv, ip_recv);
   /*
   connected_node *temp = connected_clients->nodes, *prev;
 

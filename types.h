@@ -18,7 +18,7 @@ typedef struct connected_list {
 
 typedef struct circular_node {
   char pathname[128];
-  int version;
+  char version[128];
   uint16_t port;
   uint32_t ip;
 } circular_node;
