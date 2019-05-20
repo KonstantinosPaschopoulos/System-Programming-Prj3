@@ -34,7 +34,7 @@ void logon(int newsock, connected_list *connected_clients){
     curr_client = curr_client->next;
   }
 
-  printf("Client connected from: %d %d\n", port_recv, ip_recv);
+  printf("Client: %d %d, has logged on.\n", port_recv, ip_recv);
 
   //Creating a new client node
   new_client = (connected_node*)malloc(sizeof(connected_node));
@@ -119,6 +119,8 @@ void getclients(int newsock, connected_list *connected_clients){
 }
 
 void logoff(int newsock, connected_list *connected_clients){
+  connected_node ** nodes_ptr = &(connected_clients->nodes);
+  connected_node *tmp;
   uint16_t port_recv;
   uint32_t ip_recv;
 
@@ -128,38 +130,20 @@ void logoff(int newsock, connected_list *connected_clients){
   read(newsock, &ip_recv, sizeof(ip_recv));
   ip_recv = ntohl(ip_recv);
 
+  while (*nodes_ptr != NULL)
+  {
+    if (((**nodes_ptr).clientIP == ip_recv) && ((**nodes_ptr).clientPort == port_recv))
+    {
+      tmp = *nodes_ptr;
+      *nodes_ptr = tmp->next;
+      free(tmp);
+    }
+    else
+    {
+      nodes_ptr = &((**nodes_ptr).next);
+    }
+  }
+
   printf("Client: %d %d, has logged off.\n", port_recv, ip_recv);
-  /*
-  connected_node *temp = connected_clients->nodes, *prev;
-
-  // Checking if it the head
-  if ((temp != NULL) && (temp->sock == newsock))
-  {
-    printf("Client: %d %d, is loggin off.\n", temp->clientPort, temp->clientIP);
-    connected_clients->nodes = temp->next;
-    free(temp);
-    return;
-  }
-
-  // Searching for the correct node
-  while ((temp != NULL) && (temp->sock != newsock))
-  {
-    prev = temp;
-    temp = temp->next;
-  }
-
-  // The client was not connected to the server
-  if (temp == NULL)
-  {
-    printf("ERROR_IP_PORT_NOT_FOUND_IN_LIST\n");
-    return;
-  }
-
-  // Removing the client from the list
-  printf("Client: %d %d, is loggin off.\n", temp->clientPort, temp->clientIP);
-  prev->next = temp->next;
-  free(temp);
-  */
-
   // TODO Sending USER_OFF messages to every connected client
 }
