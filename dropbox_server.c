@@ -183,15 +183,15 @@ int main(int argc, char **argv){
           // Responding to client requests
           if (strcmp(command_buffer, "LOG_ON") == 0)
           {
-            logon(newsock, connected_clients);
+            logon(sd, connected_clients);
           }
           else if (strcmp(command_buffer, "GET_CLIENTS") == 0)
           {
-            getclients(newsock, connected_clients);
+            getclients(sd, connected_clients);
           }
           else if (strcmp(command_buffer, "LOG_OFF") == 0)
           {
-            logoff(newsock, connected_clients);
+            logoff(sd, connected_clients);
           }
         }
       }
@@ -199,6 +199,8 @@ int main(int argc, char **argv){
 
     memset(command_buffer, 0, 11);
   }
+
+  close(sock);
 
   return 0;
 }
