@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <errno.h>
 #include "types.h"
+#include "client_functions.h"
 
 pthread_mutex_t mtx;
 pthread_cond_t cond_nonempty;
@@ -71,8 +72,8 @@ circular_node obtain(pool_t *pool){
 }
 
 void * worker(void *ptr){
-  int sock;
-  char *input;
+  int sock, i, x;
+  char *input, *num, *reply, *pathname;
   circular_node node;
   struct hostent *rem;
   struct in_addr ip_addr;
@@ -81,6 +82,24 @@ void * worker(void *ptr){
 
   input = (char*)calloc(13, sizeof(char));
   if (input == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  num = (char*)calloc(12, sizeof(char));
+  if (num == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  reply = (char*)calloc(15, sizeof(char));
+  if (reply == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  pathname = (char*)calloc(128, sizeof(char));
+  if (pathname == NULL)
   {
     perror("Calloc failed");
     exit(2);
@@ -122,6 +141,26 @@ void * worker(void *ptr){
       write(sock, input, 13);
 
       // Reading the requested data
+      read(sock, reply, 15);
+      if (strcmp(reply, "FILE_LIST") == 0)
+      {
+        memset(reply, 0, 12);
+        read(sock, num, 12);
+        x = atoi(num);
+        for (i = 0; i < x; i++)
+        {
+          memset(pathname, 0, 128);
+          memset(num, 0, 12);
+          read(sock, pathname, 128);
+          read(sock, num, 12);
+          printf("%s %d\n", pathname, atoi(num));
+        }
+      }
+      else
+      {
+        printf("GET_FILE_LIST error\n");
+        pthread_exit(0);
+      }
 
       close(sock);
     }
@@ -133,6 +172,10 @@ void * worker(void *ptr){
     memset(input, 0, 13);
   }
 
+  free(input);
+  free(reply);
+  free(num);
+  free(pathname);
   pthread_exit(0);
 }
 
@@ -491,7 +534,7 @@ int main(int argc, char **argv){
           // Responding to client requests
           if (strcmp(input, "GET_FILE_LIST") == 0)
           {
-            printf("YES\n");
+            getfilelist(sd, dirName);
           }
           else if (strcmp(input, "GET_FILE") == 0)
           {
