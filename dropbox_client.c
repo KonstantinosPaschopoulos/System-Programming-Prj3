@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
 #include "types.h"
 
 pthread_mutex_t mtx;
@@ -16,6 +17,11 @@ pthread_cond_t cond_nonempty;
 pthread_cond_t cond_nonfull;
 pool_t pool;
 volatile sig_atomic_t flag = 1;
+
+void catchinterrupt(int signo){
+  flag = 0;
+  printf("Caught %d. Sending LOG_OFF message, cleaning memory and exiting.\n", signo);
+}
 
 void initialize(pool_t *pool, int bufferSize){
   pool->buffer = (circular_node*)malloc(bufferSize * sizeof(circular_node));
@@ -65,33 +71,89 @@ circular_node obtain(pool_t *pool){
 }
 
 void * worker(void *ptr){
-  printf("Thread has been created\n");
+  int sock;
+  char *input;
   circular_node node;
+  struct hostent *rem;
+  struct in_addr ip_addr;
+  struct sockaddr_in server;
+  struct sockaddr *serverptr = (struct sockaddr*)&server;
+
+  input = (char*)calloc(13, sizeof(char));
+  if (input == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
 
   while (flag == 1)
   {
     node = obtain(&pool);
 
-    printf("%d\n", node.port);
+    // GET_FILE_LIST request
+    if (strcmp(node.pathname, "-1") == 0)
+    {
+      // Creating the socket to communicate with the server
+      if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+      {
+        perror("Creating socket");
+        exit(2);
+      }
+
+      ip_addr.s_addr = htonl(node.ip);
+
+      // Connecting to the server
+      if ((rem = gethostbyname(inet_ntoa(ip_addr))) == NULL)
+      {
+        perror("gethostbyname failed");
+        exit(2);
+      }
+      server.sin_family = AF_INET;
+      memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
+      server.sin_port = htons(node.port);
+      if (connect(sock, serverptr, sizeof(server)) < 0)
+      {
+        perror("Connecting to server");
+        exit(2);
+      }
+
+      // Sending GET_FILE_LIST request
+      strcpy(input, "GET_FILE_LIST");
+      write(sock, input, 13);
+
+      // Reading the requested data
+
+      close(sock);
+    }
+    else
+    {
+      // GET_FILE request
+    }
+
+    memset(input, 0, 13);
   }
 
   pthread_exit(0);
 }
 
 int main(int argc, char **argv){
-  int i, server_port, server_sock, portNum, serverNum;
-  int workerThreads, bufferSize, comm, optval = 1, x;
+  int i, server_port, server_sock, portNum, serverNum, clients[MAX_CLIENTS];
+  int workerThreads, bufferSize, comm, optval = 1, x, max, sd, activity, newsock;
   uint16_t port_net;
   uint32_t ip_net;
-  struct sockaddr_in server, temp, comm_addr;
+  struct sockaddr_in server, temp, comm_addr, client;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   struct sockaddr *commptr = (struct sockaddr*)&comm_addr;
+  struct sockaddr *clientptr = (struct sockaddr *)&client;
   struct hostent *rem, *host_entry;
-  char *command_buffer, *IPbuffer, *number_recv;
+  static struct sigaction act;
+  socklen_t clientlen;
+  char *command_buffer, *IPbuffer, *number_recv, *input;
   char dirName[256], serverIP[256], hostbuffer[256];
   connected_list *client_list;
   connected_node *curr_client, *new_client;
   pthread_t thr;
+  fd_set readfds;
 
   // Parsing the input from the command line
   if (argc != 13)
@@ -138,6 +200,11 @@ int main(int argc, char **argv){
     }
   }
 
+  // Setting up the signal handler
+  act.sa_handler = catchinterrupt;
+  sigfillset(&(act.sa_mask));
+  sigaction(SIGINT, &act, NULL);
+
   // Creating the socket to communicate with other clients
   if ((comm = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
@@ -176,14 +243,12 @@ int main(int argc, char **argv){
     exit(2);
   }
 
-  // Finding the server's address
+  // Connecting to the server
   if ((rem = gethostbyname(serverIP)) == NULL)
   {
     perror("gethostbyname failed");
     exit(2);
   }
-
-  // Connecting to the server
   server.sin_family = AF_INET;
   memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
   server.sin_port = htons(server_port);
@@ -201,6 +266,12 @@ int main(int argc, char **argv){
   }
   number_recv = (char*)calloc(12, sizeof(char));
   if (number_recv == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  input = (char*)calloc(13, sizeof(char));
+  if (input == NULL)
   {
     perror("Calloc failed");
     exit(2);
@@ -262,7 +333,6 @@ int main(int argc, char **argv){
     x = atoi(number_recv);
     memset(number_recv, 0, 12);
 
-    printf("Connected clients: %d\n", x);
     for (i = 0; i < x; i++)
     {
       // Receiving the IP and the port
@@ -271,9 +341,7 @@ int main(int argc, char **argv){
       read(server_sock, &ip_net, sizeof(ip_net));
       ip_net = ntohl(ip_net);
 
-      printf("%d %d\n", port_net, ip_net);
-
-      if ((port_net == portNum) && (ip_net == serverNum))
+      if ((port_net == portNum) && (ip_net == ntohl(serverNum)))
       {
         continue;
       }
@@ -322,13 +390,126 @@ int main(int argc, char **argv){
     pthread_create(&thr, 0, worker, 0);
   }
 
-  // The client is ready to sync with the other clients
-  
+  // Adding the clients to the buffer
+  curr_client = client_list->nodes;
+  while (curr_client != NULL)
+  {
+    circular_node data;
+    strcpy(data.pathname, "-1");
+    strcpy(data.version, "-1");
+    data.port = curr_client->clientPort;
+    data.ip = curr_client->clientIP;
+    place(&pool, data);
 
-  getchar();
-  printf("Loggin off\n");
+    curr_client = curr_client->next;
+  }
 
-  flag = 0;
+  // Setting up select
+  for (i = 0; i < MAX_CLIENTS; i++)
+  {
+    clients[i] = 0;
+  }
+
+  // Accepting messages from the clients
+  while(flag == 1)
+  {
+    // Creating the socket set
+    FD_ZERO(&readfds);
+    FD_SET(comm, &readfds);
+    FD_SET(server_sock, &readfds);
+    max = server_sock;
+
+    // Updating the set
+    for (i = 0; i < MAX_CLIENTS; i++)
+    {
+      sd = clients[i];
+
+      if (sd > 0)
+      {
+        FD_SET(sd, &readfds);
+      }
+
+      if (sd > max)
+      {
+        max = sd;
+      }
+    }
+
+    // Using select for I/O
+    activity = select(max + 1, &readfds, NULL, NULL, NULL);
+    if (flag == 0)
+    {
+      break;
+    }
+    if ((activity < 0) && (errno != EINTR))
+    {
+      perror("select error");
+      exit(2);
+    }
+
+    // Incoming connection
+    if (FD_ISSET(comm, &readfds))
+    {
+      // Accept new connection
+      newsock = accept(comm, clientptr, &clientlen);
+      if (flag == 0)
+      {
+        break;
+      }
+      if (newsock < 0)
+      {
+        perror("Accepting new connection");
+        exit(2);
+      }
+
+      // Add the client to the list of sockets
+      for (i = 0; i < MAX_CLIENTS; i++)
+      {
+        if (clients[i] == 0)
+        {
+          clients[i] = newsock;
+          break;
+        }
+      }
+    }
+
+    // I/O happened
+    for (i = 0; i < MAX_CLIENTS; i++)
+    {
+      sd = clients[i];
+
+      if (FD_ISSET(sd, &readfds))
+      {
+        // Someone disconnected
+        if (read(sd, input, 13) == 0)
+        {
+          close(sd);
+          clients[i] = 0;
+        }
+        else
+        {
+          // Responding to client requests
+          if (strcmp(input, "GET_FILE_LIST") == 0)
+          {
+            printf("YES\n");
+          }
+          else if (strcmp(input, "GET_FILE") == 0)
+          {
+          }
+          else if (strcmp(input, "USER_OFF") == 0)
+          {
+          }
+          else if (strcmp(input, "USER_ON") == 0)
+          {
+          }
+        }
+      }
+    }
+
+    memset(input, 0, 13);
+  }
+
+  printf("Loggin off.\n");
 
   for (i = 0; i < workerThreads; i++)
   {
@@ -340,8 +521,12 @@ int main(int argc, char **argv){
   pthread_mutex_destroy(&mtx);
 
   // LOG_OFF message
+  memset(command_buffer, 0, 11);
   strcpy(command_buffer, "LOG_OFF");
   write(server_sock, command_buffer, 11);
+  port_net = htons(portNum);
+  write(server_sock, &port_net, sizeof(port_net));
+  write(server_sock, &serverNum, sizeof(serverNum));
 
   close(server_sock);
   close(comm);
