@@ -74,7 +74,7 @@ circular_node obtain(pool_t *pool){
 void * worker(void *ptr){
   int sock, i, x;
   char *input, *num, *reply, *pathname;
-  circular_node node;
+  circular_node node, data;
   struct hostent *rem;
   struct in_addr ip_addr;
   struct sockaddr_in server;
@@ -108,6 +108,7 @@ void * worker(void *ptr){
   while (flag == 1)
   {
     node = obtain(&pool);
+    pthread_cond_signal(&cond_nonfull);
 
     // GET_FILE_LIST request
     if (strcmp(node.pathname, "-1") == 0)
@@ -153,7 +154,13 @@ void * worker(void *ptr){
           memset(num, 0, 12);
           read(sock, pathname, 128);
           read(sock, num, 12);
-          printf("%s %d\n", pathname, atoi(num));
+
+          strcpy(data.pathname, pathname);
+          strcpy(data.version, num);
+          data.port = node.port;
+          data.ip = node.ip;
+          place(&pool, data);
+          pthread_cond_signal(&cond_nonempty);
         }
       }
       else
@@ -167,6 +174,7 @@ void * worker(void *ptr){
     else
     {
       // GET_FILE request
+      printf("FILE\n");
     }
 
     memset(input, 0, 13);
