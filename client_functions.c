@@ -15,7 +15,6 @@
 void getfilelist(int fd, char *input_dir){
   char *buffer, *count_str;
   int count;
-
   buffer = (char*)calloc(15, sizeof(char));
   if (buffer == NULL)
   {
@@ -28,7 +27,6 @@ void getfilelist(int fd, char *input_dir){
     perror("Calloc failed");
     exit(2);
   }
-  printf("YES\n");
 
   // Write FILE_LIST N
   strcpy(buffer, "FILE_LIST");
@@ -129,7 +127,8 @@ void pathnames(char *input_dir, int fd){
     }
     else
     {
-      printf("%s\n", next_path);
+      // At first the client sends the version as -1
+      // to make the communication easier
       write(fd, next_path, 128);
       write(fd, count_str, 12);
     }
@@ -142,4 +141,66 @@ void pathnames(char *input_dir, int fd){
   }
   free(next_path);
   free(count_str);
+}
+
+void getfile(int fd, char *input_dir){
+  char *pathname, *version, *correct_path, *buffer;
+  correct_path = (char*)calloc(128, sizeof(char));
+  if (correct_path == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  buffer = (char*)calloc(15, sizeof(char));
+  if (buffer == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  version = (char*)calloc(12, sizeof(char));
+  if (version == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  pathname = (char*)calloc(128, sizeof(char));
+  if (pathname == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+
+  // Reading the rest of the request
+  read(fd, pathname, 128);
+  read(fd, version, 12);
+
+  // Creating the correct path: inputDir/pathname
+  sprintf(correct_path, "%s/%s", input_dir, pathname);
+
+  // Checking if the file exists at all
+  if (access(correct_path, F_OK) != -1)
+  {
+    if (atoi(version) == -1)
+    {
+      // Sending the file
+      printf("WILL send whole file\n");
+      // Write FILE_LIST N
+      strcpy(buffer, "FILE_SIZE");
+      write(fd, buffer, 15);
+    }
+    else
+    {
+      // Checking the version of the local file
+    }
+  }
+  else
+  {
+    strcpy(buffer, "FILE_NOT_FOUND");
+    write(fd, buffer, 15);
+  }
+
+  free(pathname);
+  free(version);
+  free(correct_path);
+  free(buffer);
 }

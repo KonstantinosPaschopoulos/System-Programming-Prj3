@@ -73,7 +73,7 @@ circular_node obtain(pool_t *pool){
 
 void * worker(void *ptr){
   int sock, i, x;
-  char *input, *num, *reply, *pathname;
+  char *input, *num, *reply, *pathname, *tmp;
   circular_node node, data;
   struct hostent *rem;
   struct in_addr ip_addr;
@@ -110,33 +110,32 @@ void * worker(void *ptr){
     node = obtain(&pool);
     pthread_cond_signal(&cond_nonfull);
 
+    // Creating the socket to communicate with the server
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+      perror("Creating socket");
+      exit(2);
+    }
+
+    // Connecting to the server
+    ip_addr.s_addr = htonl(node.ip);
+    if ((rem = gethostbyname(inet_ntoa(ip_addr))) == NULL)
+    {
+      perror("gethostbyname failed");
+      exit(2);
+    }
+    server.sin_family = AF_INET;
+    memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
+    server.sin_port = htons(node.port);
+    if (connect(sock, serverptr, sizeof(server)) < 0)
+    {
+      perror("Connecting to server");
+      exit(2);
+    }
+
     // GET_FILE_LIST request
     if (strcmp(node.pathname, "-1") == 0)
     {
-      // Creating the socket to communicate with the server
-      if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      {
-        perror("Creating socket");
-        exit(2);
-      }
-
-      ip_addr.s_addr = htonl(node.ip);
-
-      // Connecting to the server
-      if ((rem = gethostbyname(inet_ntoa(ip_addr))) == NULL)
-      {
-        perror("gethostbyname failed");
-        exit(2);
-      }
-      server.sin_family = AF_INET;
-      memcpy(&server.sin_addr, rem->h_addr, rem->h_length);
-      server.sin_port = htons(node.port);
-      if (connect(sock, serverptr, sizeof(server)) < 0)
-      {
-        perror("Connecting to server");
-        exit(2);
-      }
-
       // Sending GET_FILE_LIST request
       strcpy(input, "GET_FILE_LIST");
       write(sock, input, 13);
@@ -155,6 +154,12 @@ void * worker(void *ptr){
           read(sock, pathname, 128);
           read(sock, num, 12);
 
+          tmp = strchr(pathname, '/');
+          if (tmp != NULL)
+          {
+            memmove(pathname, tmp + 1, strlen(tmp));
+          }
+
           strcpy(data.pathname, pathname);
           strcpy(data.version, num);
           data.port = node.port;
@@ -168,16 +173,51 @@ void * worker(void *ptr){
         printf("GET_FILE_LIST error\n");
         pthread_exit(0);
       }
-
-      close(sock);
     }
     else
     {
       // GET_FILE request
-      printf("FILE\n");
+      // TODO check if client is in the list
+      strcpy(input, "GET_FILE");
+      write(sock, input, 13);
+
+      if ((strcmp(node.version, "-1") == 0))
+      {
+        // Asking for the client to send us the file
+        memset(pathname, 0, 128);
+        strcpy(pathname, node.pathname);
+        memset(num, 0, 12);
+        strcpy(num, node.version);
+        write(sock, pathname, 128);
+        write(sock, num, 12);
+
+        printf("WORKER %s %s\n", pathname, num);
+
+        read(sock, reply, 15);
+        if (strcmp(reply, "FILE_SIZE") == 0)
+        {
+          // Start reading the bytes
+          printf("reading\n");
+        }
+        else if (strcmp(reply, "FILE_NOT_FOUND"))
+        {
+          printf("GET_FILE error\n");
+          pthread_exit(0);
+        }
+        else if (strcmp(reply, "FILE_UP_TO_DATE"))
+        {
+          continue;
+        }
+      }
+      else
+      {
+        // The file exists, checking the version
+      }
     }
 
+    close(sock);
     memset(input, 0, 13);
+    memset(reply, 0, 15);
   }
 
   free(input);
@@ -546,6 +586,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(input, "GET_FILE") == 0)
           {
+            getfile(sd, dirName);
           }
           else if (strcmp(input, "USER_OFF") == 0)
           {

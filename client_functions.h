@@ -6,3 +6,5 @@ void getfilelist(int, char *);
 int count_files(char *);
 // Recursively sends every pathname inside the dirName directory
 void pathnames(char *, int);
+// Responds to a GET_FILE request
+void getfile(int, char *);
