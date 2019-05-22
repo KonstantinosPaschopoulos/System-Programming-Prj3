@@ -279,7 +279,6 @@ void createfile(char *pathname){
   {
     token = strtok_r(NULL, "/", &rest);
     sprintf(path, "%s/%s", path, token);
-    printf("path %s\n", path);
     if (mkdir(path, 0777) == -1)
     {
       if (errno != EEXIST)

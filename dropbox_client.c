@@ -90,6 +90,7 @@ void * worker(void *ptr){
   struct in_addr ip_addr;
   struct sockaddr_in server;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
+  FILE *fp = NULL;
 
   input = (char*)calloc(13, sizeof(char));
   if (input == NULL)
@@ -201,6 +202,7 @@ void * worker(void *ptr){
       if ((strcmp(node.version, "-1") == 0))
       {
         // Asking for the client to send us the file
+        // TODO check if file is stored localy
         memset(pathname, 0, 128);
         strcpy(pathname, node.pathname);
         memset(num, 0, 12);
@@ -211,8 +213,17 @@ void * worker(void *ptr){
         read(sock, reply, 15);
         if (strcmp(reply, "FILE_SIZE") == 0)
         {
+          // Create all the required directories and then create the file
           sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
           createfile(path);
+          sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
+          printf("%s\n", path);
+          fp = fopen(path, "w");
+          if (fp == NULL)
+          {
+            perror("Couldn't create the mirrored file");
+            exit(2);
+          }
 
           // Start reading the bytes
           read(sock, num, 12);
@@ -221,9 +232,11 @@ void * worker(void *ptr){
           while (remaining > 0)
           {
             read(sock, recv_b, 1);
-            printf("%s\n", recv_b);
+            fwrite(recv_b, sizeof(char), 1, fp);
             remaining--;
           }
+
+          fclose(fp);
         }
         else if (strcmp(reply, "FILE_NOT_FOUND"))
         {
@@ -232,6 +245,9 @@ void * worker(void *ptr){
         }
         else if (strcmp(reply, "FILE_UP_TO_DATE"))
         {
+          close(sock);
+          memset(input, 0, 13);
+          memset(reply, 0, 15);
           continue;
         }
       }
