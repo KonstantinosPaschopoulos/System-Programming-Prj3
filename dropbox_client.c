@@ -1,3 +1,10 @@
+// File: dropbox_client.c
+// I have added the extra arguments "-m mirrorDir" when calling the
+// dropbox_client executable. It works the way the mirror directory
+// in assignement 2 worked.
+// The circular buffer code is based on the slides of professor Alexandros Ntoulas
+// Source: http://cgi.di.uoa.gr/~antoulas/k24/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +19,8 @@
 #include <errno.h>
 #include "types.h"
 #include "client_functions.h"
+
+// TODO fix perror in threads
 
 pthread_mutex_t mtx;
 pthread_cond_t cond_nonempty;
@@ -72,8 +81,10 @@ circular_node obtain(pool_t *pool){
 }
 
 void * worker(void *ptr){
-  int sock, i, x;
-  char *input, *num, *reply, *pathname, *tmp;
+  int sock, i, x, remaining;
+  char *input, *num, *reply, *pathname, *tmp, *recv_b;
+  char *mirrorDir = (char *)ptr;
+  char path[128];
   circular_node node, data;
   struct hostent *rem;
   struct in_addr ip_addr;
@@ -82,6 +93,12 @@ void * worker(void *ptr){
 
   input = (char*)calloc(13, sizeof(char));
   if (input == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  recv_b = (char*)calloc(1, sizeof(char));
+  if (recv_b == NULL)
   {
     perror("Calloc failed");
     exit(2);
@@ -191,13 +208,22 @@ void * worker(void *ptr){
         write(sock, pathname, 128);
         write(sock, num, 12);
 
-        printf("WORKER %s %s\n", pathname, num);
-
         read(sock, reply, 15);
         if (strcmp(reply, "FILE_SIZE") == 0)
         {
+          sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
+          createfile(path);
+
           // Start reading the bytes
-          printf("reading\n");
+          read(sock, num, 12);
+
+          remaining = atoi(num);
+          while (remaining > 0)
+          {
+            read(sock, recv_b, 1);
+            printf("%s\n", recv_b);
+            remaining--;
+          }
         }
         else if (strcmp(reply, "FILE_NOT_FOUND"))
         {
@@ -240,16 +266,16 @@ int main(int argc, char **argv){
   static struct sigaction act;
   socklen_t clientlen;
   char *command_buffer, *IPbuffer, *number_recv, *input;
-  char dirName[256], serverIP[256], hostbuffer[256];
+  char dirName[256], serverIP[256], hostbuffer[256], mirrorDir[256];
   connected_list *client_list;
   connected_node *curr_client, *new_client;
   pthread_t thr;
   fd_set readfds;
 
   // Parsing the input from the command line
-  if (argc != 13)
+  if (argc != 15)
   {
-    printf("Usage: ./dropbox_client -d dirName -p portNum -w workerThreads -b bufferSize -sp serverPort -sip serverIP\n");
+    printf("Usage: ./dropbox_client -m mirrorDir -d dirName -p portNum -w workerThreads -b bufferSize -sp serverPort -sip serverIP\n");
     exit(1);
   }
   for (i = 1; i < argc; i++)
@@ -262,6 +288,11 @@ int main(int argc, char **argv){
     else if (strcmp(argv[i], "-p") == 0)
     {
       portNum = atoi(argv[i + 1]);
+      i++;
+    }
+    else if (strcmp(argv[i], "-m") == 0)
+    {
+      strcpy(mirrorDir, argv[i + 1]);
       i++;
     }
     else if (strcmp(argv[i], "-w") == 0)
@@ -286,7 +317,7 @@ int main(int argc, char **argv){
     }
     else
     {
-      printf("Usage: ./dropbox_client -d dirName -p portNum -w workerThreads -b bufferSize -sp serverPort -sip serverIP\n");
+      printf("Usage: ./dropbox_client -m mirrorDir -d dirName -p portNum -w workerThreads -b bufferSize -sp serverPort -sip serverIP\n");
       exit(1);
     }
   }
@@ -478,7 +509,7 @@ int main(int argc, char **argv){
   pthread_cond_init(&cond_nonfull, 0);
   for (i = 0; i < workerThreads; i++)
   {
-    pthread_create(&thr, 0, worker, 0);
+    pthread_create(&thr, 0, worker, (void *) mirrorDir);
   }
 
   // Adding the clients to the buffer

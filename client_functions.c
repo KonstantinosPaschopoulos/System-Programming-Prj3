@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "types.h"
 #include "client_functions.h"
 
@@ -144,9 +145,23 @@ void pathnames(char *input_dir, int fd){
 }
 
 void getfile(int fd, char *input_dir){
-  char *pathname, *version, *correct_path, *buffer;
+  char *pathname, *version, *correct_path, *buffer, *num, *send_b;
+  int fileLength, n;
+  FILE* fp = NULL;
+  send_b = (char*)calloc(1, sizeof(char));
+  if (send_b == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
   correct_path = (char*)calloc(128, sizeof(char));
   if (correct_path == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  num = (char*)calloc(12, sizeof(char));
+  if (num == NULL)
   {
     perror("Calloc failed");
     exit(2);
@@ -180,13 +195,33 @@ void getfile(int fd, char *input_dir){
   // Checking if the file exists at all
   if (access(correct_path, F_OK) != -1)
   {
-    if (atoi(version) == -1)
+    if (strcmp(version, "-1") == 0)
     {
-      // Sending the file
-      printf("WILL send whole file\n");
       // Write FILE_LIST N
       strcpy(buffer, "FILE_SIZE");
       write(fd, buffer, 15);
+
+      // Calculating and sending the size of the file
+      fp = fopen(correct_path, "r");
+      if (fp == NULL)
+      {
+        perror("Could not open file");
+        exit(2);
+      }
+      fseek(fp, 0L, SEEK_END);
+      fileLength = (int)ftell(fp);
+      sprintf(num, "%d", fileLength);
+
+      write(fd, num, 12);
+
+      // Using fgets to read the file byte by byte and send it
+      fseek(fp, 0L, SEEK_SET);
+      while ((n = fread(send_b, sizeof(char), 1, fp)) > 0)
+      {
+        write(fd, send_b, n);
+      }
+
+      fclose(fp);
     }
     else
     {
@@ -203,4 +238,56 @@ void getfile(int fd, char *input_dir){
   free(version);
   free(correct_path);
   free(buffer);
+  free(num);
+  free(send_b);
+}
+
+void createfile(char *pathname){
+  char path[128] = {0};
+  char *token, *rest = NULL;
+  int i, s = 0;
+
+  // Counts how many '/' exist in the path, to count how many directories
+  // will have to be created
+  for (i = 0; i < (int)strlen(pathname); i++)
+  {
+    if (pathname[i] == '/')
+    {
+      s++;
+    }
+  }
+
+  if (s == 0)
+  {
+    return;
+  }
+
+  // Using strtok_r we break down the pathname and create all the directories
+  token = strtok_r(pathname, "/", &rest);
+  strcpy(path, token);
+  if (mkdir(path, 0777) == -1)
+  {
+    if (errno != EEXIST)
+    {
+      perror("mirror mkdir failed");
+      exit(2);
+    }
+  }
+  s--;
+
+  while ((token != NULL) && (s > 0))
+  {
+    token = strtok_r(NULL, "/", &rest);
+    sprintf(path, "%s/%s", path, token);
+    printf("path %s\n", path);
+    if (mkdir(path, 0777) == -1)
+    {
+      if (errno != EEXIST)
+      {
+        perror("mirror mkdir failed");
+        exit(2);
+      }
+    }
+    s--;
+  }
 }

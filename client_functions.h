@@ -8,3 +8,5 @@ int count_files(char *);
 void pathnames(char *, int);
 // Responds to a GET_FILE request
 void getfile(int, char *);
+// Creates all the directories that are needed for a path
+void createfile(char *);
