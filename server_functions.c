@@ -18,7 +18,7 @@ void logon(int newsock, connected_list *connected_clients, int *fds){
   connected_node *new_client;
   char *msg;
 
-  msg = (char*)calloc(12, sizeof(char));
+  msg = (char*)calloc(13, sizeof(char));
   if (msg == NULL)
   {
     perror("Calloc failed");
@@ -78,7 +78,12 @@ void logon(int newsock, connected_list *connected_clients, int *fds){
   {
     if ((fds[i] != 0) && (fds[i] != newsock))
     {
-      write(fds[i], msg, 12);
+      // USER_OFF port, ip
+      port_recv = htons(port_recv);
+      ip_recv = htonl(ip_recv);
+      write(fds[i], msg, 13);
+      write(fds[i], &port_recv, sizeof(port_recv));
+      write(fds[i], &ip_recv, sizeof(ip_recv));
     }
   }
 

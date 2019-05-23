@@ -34,7 +34,7 @@ typedef struct pool_t {
 // The arguments that get passed to the worker threads
 typedef struct args {
   char mirrorDir[256];
-  connected_node *list;
+  connected_list *list;
 } args;
 
 #endif

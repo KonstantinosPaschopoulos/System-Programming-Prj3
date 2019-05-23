@@ -92,7 +92,8 @@ void * worker(void *ptr){
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   FILE *fp = NULL;
   args *arguments = (args *)ptr;
-  connected_node *head = arguments->list, *curr_client;
+  connected_list *list = arguments->list;
+  connected_node *curr_client;
   char *mirrorDir = arguments->mirrorDir;
 
   input = (char*)calloc(13, sizeof(char));
@@ -200,7 +201,7 @@ void * worker(void *ptr){
       // GET_FILE request
       check = 0;
       pthread_mutex_lock(&list_mtx);
-      curr_client = head;
+      curr_client = list->nodes;
       while (curr_client != NULL)
       {
         if ((node.port == curr_client->clientPort) && (node.ip == curr_client->clientIP))
@@ -549,14 +550,12 @@ int main(int argc, char **argv){
   pthread_cond_init(&cond_nonempty, 0);
   pthread_cond_init(&cond_nonfull, 0);
   strcpy(arguments.mirrorDir, mirrorDir);
-  arguments.list = client_list->nodes;
+  arguments.list = client_list;
   for (i = 0; i < workerThreads; i++)
   {
     pthread_create(&thr, 0, worker, &arguments);
   }
 
-  // Adding the clients to the buffer, no need for synchronization
-  // since only the main thread uses the list now
   curr_client = client_list->nodes;
   while (curr_client != NULL)
   {
@@ -566,6 +565,7 @@ int main(int argc, char **argv){
     data.port = curr_client->clientPort;
     data.ip = curr_client->clientIP;
     place(&pool, data);
+    pthread_cond_signal(&cond_nonempty);
 
     curr_client = curr_client->next;
   }
@@ -669,7 +669,50 @@ int main(int argc, char **argv){
           }
           else if (strcmp(input, "USER_ON") == 0)
           {
-            printf("yup\n");
+            // Receiving the port and the IP
+            read(sd, &port_net, sizeof(port_net));
+            port_net = ntohs(port_net);
+            read(sd, &ip_net, sizeof(ip_net));
+            ip_net = ntohl(ip_net);
+
+            printf("Connecting to client: %d %d\n", port_net, ip_net);
+
+            // Add client to the list
+            pthread_mutex_lock(&list_mtx);
+            new_client = (connected_node*)malloc(sizeof(connected_node));
+            if (new_client == NULL)
+            {
+              perror("Malloc failed");
+              exit(2);
+            }
+            new_client->clientIP = ip_net;
+            new_client->clientPort = port_net;
+            new_client->next = NULL;
+
+            if (client_list->nodes == NULL)
+            {
+              client_list->nodes = new_client;
+            }
+            else
+            {
+              curr_client = client_list->nodes;
+              while ((curr_client->next) != NULL)
+              {
+                curr_client = curr_client->next;
+              }
+
+              curr_client->next = new_client;
+            }
+            pthread_mutex_unlock(&list_mtx);
+
+            // Adding element to circular buffer
+            circular_node data;
+            strcpy(data.pathname, "-1");
+            strcpy(data.version, "-1");
+            data.port = port_net;
+            data.ip = ip_net;
+            place(&pool, data);
+            pthread_cond_signal(&cond_nonempty);
           }
         }
       }
@@ -684,6 +727,7 @@ int main(int argc, char **argv){
   {
     // Maybe array?
     // pthread_join(thr, 0);
+    // TODO join
   }
   pthread_cond_destroy(&cond_nonempty);
   pthread_cond_destroy(&cond_nonfull);
