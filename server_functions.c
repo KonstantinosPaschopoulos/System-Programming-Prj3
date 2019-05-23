@@ -10,11 +10,21 @@
 #include <errno.h>
 #include "types.h"
 
-void logon(int newsock, connected_list *connected_clients){
+void logon(int newsock, connected_list *connected_clients, int *fds){
+  int i;
   uint16_t port_recv;
   uint32_t ip_recv;
   connected_node *curr_client = connected_clients->nodes;
   connected_node *new_client;
+  char *msg;
+
+  msg = (char*)calloc(12, sizeof(char));
+  if (msg == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  strcpy(msg, "USER_ON");
 
   // Receiving the IP and the port
   read(newsock, &port_recv, sizeof(port_recv));
@@ -63,7 +73,16 @@ void logon(int newsock, connected_list *connected_clients){
     curr_client->next = new_client;
   }
 
-  // TODO Sending USER_ON messages to every connected client
+  // Sending USER_ON messages to every connected client
+  for (i = 0; i < MAX_CLIENTS; i++)
+  {
+    if ((fds[i] != 0) && (fds[i] != newsock))
+    {
+      write(fds[i], msg, 12);
+    }
+  }
+
+  free(msg);
 }
 
 void getclients(int newsock, connected_list *connected_clients){
@@ -118,11 +137,21 @@ void getclients(int newsock, connected_list *connected_clients){
   free(count_str);
 }
 
-void logoff(int newsock, connected_list *connected_clients){
+void logoff(int newsock, connected_list *connected_clients, int *fds){
   connected_node ** nodes_ptr = &(connected_clients->nodes);
   connected_node *tmp;
+  char *msg;
   uint16_t port_recv;
   uint32_t ip_recv;
+  int i;
+
+  msg = (char*)calloc(12, sizeof(char));
+  if (msg == NULL)
+  {
+    perror("Calloc failed");
+    exit(2);
+  }
+  strcpy(msg, "USER_OFF");
 
   // Receiving the IP and the port
   read(newsock, &port_recv, sizeof(port_recv));
@@ -145,5 +174,15 @@ void logoff(int newsock, connected_list *connected_clients){
   }
 
   printf("Client: %d %d, has logged off.\n", port_recv, ip_recv);
-  // TODO Sending USER_OFF messages to every connected client
+
+  // Sending USER_ON messages to every connected client
+  for (i = 0; i < MAX_CLIENTS; i++)
+  {
+    if ((fds[i] != 0) && (fds[i] != newsock))
+    {
+      write(fds[i], msg, 12);
+    }
+  }
+
+  free(msg);
 }

@@ -577,12 +577,12 @@ int main(int argc, char **argv){
   }
 
   // Accepting messages from the clients
+  clients[0] = server_sock;
   while(flag == 1)
   {
     // Creating the socket set
     FD_ZERO(&readfds);
     FD_SET(comm, &readfds);
-    FD_SET(server_sock, &readfds);
     max = server_sock;
 
     // Updating the set
@@ -665,9 +665,11 @@ int main(int argc, char **argv){
           }
           else if (strcmp(input, "USER_OFF") == 0)
           {
+            printf("GOT IT\n");
           }
           else if (strcmp(input, "USER_ON") == 0)
           {
+            printf("yup\n");
           }
         }
       }

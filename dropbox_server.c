@@ -183,7 +183,7 @@ int main(int argc, char **argv){
           // Responding to client requests
           if (strcmp(command_buffer, "LOG_ON") == 0)
           {
-            logon(sd, connected_clients);
+            logon(sd, connected_clients, clients);
           }
           else if (strcmp(command_buffer, "GET_CLIENTS") == 0)
           {
@@ -191,7 +191,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(command_buffer, "LOG_OFF") == 0)
           {
-            logoff(sd, connected_clients);
+            logoff(sd, connected_clients, clients);
           }
         }
       }

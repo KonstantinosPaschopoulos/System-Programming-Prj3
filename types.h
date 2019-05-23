@@ -3,7 +3,7 @@
 #ifndef MYTYPES_H
 #define MYTYPES_H
 
-// Maximum number of clients the select function will monitor
+// Maximum number of file descriptors the select function will monitor
 #define MAX_CLIENTS 45
 
 typedef struct connected_node {
@@ -31,6 +31,7 @@ typedef struct pool_t {
   int size;
 } pool_t;
 
+// The arguments that get passed to the worker threads
 typedef struct args {
   char mirrorDir[256];
   connected_node *list;
