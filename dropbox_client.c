@@ -20,9 +20,10 @@
 #include "types.h"
 #include "client_functions.h"
 
-// TODO fix perror in threads
+// TODO versions
 
 pthread_mutex_t mtx;
+pthread_mutex_t list_mtx;
 pthread_cond_t cond_nonempty;
 pthread_cond_t cond_nonfull;
 pool_t pool;
@@ -81,9 +82,8 @@ circular_node obtain(pool_t *pool){
 }
 
 void * worker(void *ptr){
-  int sock, i, x, remaining;
+  int sock, i, x, remaining, check;
   char *input, *num, *reply, *pathname, *tmp, *recv_b;
-  char *mirrorDir = (char *)ptr;
   char path[128];
   circular_node node, data;
   struct hostent *rem;
@@ -91,6 +91,9 @@ void * worker(void *ptr){
   struct sockaddr_in server;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   FILE *fp = NULL;
+  args *arguments = (args *)ptr;
+  connected_node *head = arguments->list, *curr_client;
+  char *mirrorDir = arguments->mirrorDir;
 
   input = (char*)calloc(13, sizeof(char));
   if (input == NULL)
@@ -195,7 +198,27 @@ void * worker(void *ptr){
     else
     {
       // GET_FILE request
-      // TODO check if client is in the list
+      check = 0;
+      pthread_mutex_lock(&list_mtx);
+      curr_client = head;
+      while (curr_client != NULL)
+      {
+        if ((node.port == curr_client->clientPort) && (node.ip == curr_client->clientIP))
+        {
+          check = 1;
+        }
+
+        curr_client = curr_client->next;
+      }
+      pthread_mutex_unlock(&list_mtx);
+      if (check == 0)
+      {
+        // The client is not in the list
+        printf("The client: %d %d, does not appear to be in the list.\n", node.port, node.ip);
+        close(sock);
+        continue;
+      }
+
       strcpy(input, "GET_FILE");
       write(sock, input, 13);
 
@@ -287,6 +310,7 @@ int main(int argc, char **argv){
   connected_node *curr_client, *new_client;
   pthread_t thr;
   fd_set readfds;
+  args arguments;
 
   // Parsing the input from the command line
   if (argc != 15)
@@ -421,7 +445,6 @@ int main(int argc, char **argv){
     exit(2);
   }
   client_list->nodes = NULL;
-  // TODO make list thread safe
 
   printf("The client is ready.\n");
 
@@ -495,7 +518,8 @@ int main(int argc, char **argv){
       new_client->clientPort = port_net;
       new_client->next = NULL;
 
-      // Updating the list
+      // Updating the list. No need to synchronize access to the list yet,
+      // since no threads have been created yet
       if (client_list->nodes == NULL)
       {
         client_list->nodes = new_client;
@@ -521,14 +545,18 @@ int main(int argc, char **argv){
   // Initializing the buffer and the threads
   initialize(&pool, bufferSize);
   pthread_mutex_init(&mtx, 0);
+  pthread_mutex_init(&list_mtx, 0);
   pthread_cond_init(&cond_nonempty, 0);
   pthread_cond_init(&cond_nonfull, 0);
+  strcpy(arguments.mirrorDir, mirrorDir);
+  arguments.list = client_list->nodes;
   for (i = 0; i < workerThreads; i++)
   {
-    pthread_create(&thr, 0, worker, (void *) mirrorDir);
+    pthread_create(&thr, 0, worker, &arguments);
   }
 
-  // Adding the clients to the buffer
+  // Adding the clients to the buffer, no need for synchronization
+  // since only the main thread uses the list now
   curr_client = client_list->nodes;
   while (curr_client != NULL)
   {

@@ -38,7 +38,7 @@ int main(int argc, char **argv){
   }
   portNum = atoi(argv[2]);
 
-  // TODO Dealing with SIGPIPE signal
+  // Dealing with SIGPIPE signal
   signal(SIGPIPE, SIG_IGN);
 
   // Creating the socket

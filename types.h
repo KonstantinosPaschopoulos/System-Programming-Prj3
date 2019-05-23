@@ -31,4 +31,9 @@ typedef struct pool_t {
   int size;
 } pool_t;
 
+typedef struct args {
+  char mirrorDir[256];
+  connected_node *list;
+} args;
+
 #endif
