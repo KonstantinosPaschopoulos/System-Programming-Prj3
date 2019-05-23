@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include "types.h"
 #include "client_functions.h"
 
@@ -289,4 +290,36 @@ void createfile(char *pathname){
     }
     s--;
   }
+}
+
+void useroff(int sock, connected_list *connected_clients, pthread_mutex_t *mtx){
+  connected_node ** nodes_ptr = &(connected_clients->nodes);
+  connected_node *tmp;
+  uint16_t port_net;
+  uint32_t ip_net;
+
+  // Receiving the port and the IP
+  read(sock, &port_net, sizeof(port_net));
+  port_net = ntohs(port_net);
+  read(sock, &ip_net, sizeof(ip_net));
+  ip_net = ntohl(ip_net);
+
+  // Remove client from the list
+  pthread_mutex_lock(mtx);
+  while (*nodes_ptr != NULL)
+  {
+    if (((**nodes_ptr).clientIP == ip_net) && ((**nodes_ptr).clientPort == port_net))
+    {
+      tmp = *nodes_ptr;
+      *nodes_ptr = tmp->next;
+      free(tmp);
+    }
+    else
+    {
+      nodes_ptr = &((**nodes_ptr).next);
+    }
+  }
+  pthread_mutex_unlock(mtx);
+
+  printf("Disconnecting from client: %d %d.\n", port_net, ip_net);
 }

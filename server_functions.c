@@ -26,7 +26,7 @@ void logon(int newsock, connected_list *connected_clients, int *fds){
   }
   strcpy(msg, "USER_ON");
 
-  // Receiving the IP and the port
+  // Receiving the port and the IP
   read(newsock, &port_recv, sizeof(port_recv));
   port_recv = ntohs(port_recv);
   read(newsock, &ip_recv, sizeof(ip_recv));
@@ -120,11 +120,10 @@ void getclients(int newsock, connected_list *connected_clients){
   sprintf(count_str, "%d", count);
   write(newsock, count_str, 12);
 
-  // Sending the id of every connected client
+  // Sending the id of every connected client: port, ip
   curr_client = connected_clients->nodes;
   while (curr_client != NULL)
   {
-    printf("%d %d\n", curr_client->clientPort, curr_client->clientIP);
     port_net = htons(curr_client->clientPort);
     write(newsock, &port_net, sizeof(port_net));
     ip_net = htonl(curr_client->clientIP);
@@ -145,7 +144,7 @@ void logoff(int newsock, connected_list *connected_clients, int *fds){
   uint32_t ip_recv;
   int i;
 
-  msg = (char*)calloc(12, sizeof(char));
+  msg = (char*)calloc(13, sizeof(char));
   if (msg == NULL)
   {
     perror("Calloc failed");
@@ -175,12 +174,17 @@ void logoff(int newsock, connected_list *connected_clients, int *fds){
 
   printf("Client: %d %d, has logged off.\n", port_recv, ip_recv);
 
-  // Sending USER_ON messages to every connected client
+  // Sending USER_OFF messages to every connected client
   for (i = 0; i < MAX_CLIENTS; i++)
   {
     if ((fds[i] != 0) && (fds[i] != newsock))
     {
-      write(fds[i], msg, 12);
+      // USER_OFF port, ip
+      port_recv = htons(port_recv);
+      ip_recv = htonl(ip_recv);
+      write(fds[i], msg, 13);
+      write(fds[i], &port_recv, sizeof(port_recv));
+      write(fds[i], &ip_recv, sizeof(ip_recv));
     }
   }
 

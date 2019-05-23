@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include "types.h"
 
 // Responds to a GET_FILE_LIST request
@@ -10,3 +11,5 @@ void pathnames(char *, int);
 void getfile(int, char *);
 // Creates all the directories that are needed for a path
 void createfile(char *);
+// Responds to the USER_OFF message
+void useroff(int, connected_list *, pthread_mutex_t *);

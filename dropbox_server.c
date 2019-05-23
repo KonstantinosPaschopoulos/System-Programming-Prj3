@@ -201,6 +201,7 @@ int main(int argc, char **argv){
   }
 
   close(sock);
+  free(command_buffer);
 
   return 0;
 }

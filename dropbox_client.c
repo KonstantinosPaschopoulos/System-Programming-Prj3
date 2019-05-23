@@ -665,7 +665,7 @@ int main(int argc, char **argv){
           }
           else if (strcmp(input, "USER_OFF") == 0)
           {
-            printf("GOT IT\n");
+            useroff(sd, client_list, &list_mtx);
           }
           else if (strcmp(input, "USER_ON") == 0)
           {
