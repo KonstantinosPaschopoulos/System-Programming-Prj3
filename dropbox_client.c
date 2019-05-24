@@ -296,8 +296,8 @@ void * worker(void *ptr){
 int main(int argc, char **argv){
   int i, server_port, server_sock, portNum, serverNum, clients[MAX_CLIENTS];
   int workerThreads, bufferSize, comm, optval = 1, x, max, sd, activity, newsock;
-  uint16_t port_net;
-  uint32_t ip_net;
+  uint16_t port_net, port;
+  uint32_t ip_net, ip;
   struct sockaddr_in server, temp, comm_addr, client;
   struct sockaddr *serverptr = (struct sockaddr*)&server;
   struct sockaddr *commptr = (struct sockaddr*)&comm_addr;
@@ -309,6 +309,7 @@ int main(int argc, char **argv){
   char dirName[256], serverIP[256], hostbuffer[256], mirrorDir[256];
   connected_list *client_list;
   connected_node *curr_client, *new_client;
+  circular_node data;
   pthread_t thr;
   fd_set readfds;
   args arguments;
@@ -559,7 +560,6 @@ int main(int argc, char **argv){
   curr_client = client_list->nodes;
   while (curr_client != NULL)
   {
-    circular_node data;
     strcpy(data.pathname, "-1");
     strcpy(data.version, "-1");
     data.port = curr_client->clientPort;
@@ -670,25 +670,25 @@ int main(int argc, char **argv){
           else if (strcmp(input, "USER_ON") == 0)
           {
             // Receiving the port and the IP
-            read(sd, &port_net, sizeof(port_net));
-            port_net = ntohs(port_net);
-            read(sd, &ip_net, sizeof(ip_net));
-            ip_net = ntohl(ip_net);
+            read(sd, &port, sizeof(port));
+            read(sd, &ip, sizeof(ip));
+            port = ntohs(port);
+            ip = ntohl(ip);
 
-            printf("Connecting to client: %d %d\n", port_net, ip_net);
+            printf("Connecting to client: %d %d\n", port, ip);
 
             // Add client to the list
-            pthread_mutex_lock(&list_mtx);
             new_client = (connected_node*)malloc(sizeof(connected_node));
             if (new_client == NULL)
             {
               perror("Malloc failed");
               exit(2);
             }
-            new_client->clientIP = ip_net;
-            new_client->clientPort = port_net;
+            new_client->clientIP = ip;
+            new_client->clientPort = port;
             new_client->next = NULL;
 
+            pthread_mutex_lock(&list_mtx);
             if (client_list->nodes == NULL)
             {
               client_list->nodes = new_client;
@@ -706,11 +706,10 @@ int main(int argc, char **argv){
             pthread_mutex_unlock(&list_mtx);
 
             // Adding element to circular buffer
-            circular_node data;
             strcpy(data.pathname, "-1");
             strcpy(data.version, "-1");
-            data.port = port_net;
-            data.ip = ip_net;
+            data.port = port;
+            data.ip = ip;
             place(&pool, data);
             pthread_cond_signal(&cond_nonempty);
           }

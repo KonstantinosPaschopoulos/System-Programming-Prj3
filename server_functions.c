@@ -74,13 +74,13 @@ void logon(int newsock, connected_list *connected_clients, int *fds){
   }
 
   // Sending USER_ON messages to every connected client
+  port_recv = htons(new_client->clientPort);
+  ip_recv = htonl(new_client->clientIP);
   for (i = 0; i < MAX_CLIENTS; i++)
   {
     if ((fds[i] != 0) && (fds[i] != newsock))
     {
-      // USER_OFF port, ip
-      port_recv = htons(port_recv);
-      ip_recv = htonl(ip_recv);
+      // USER_ON port, ip
       write(fds[i], msg, 13);
       write(fds[i], &port_recv, sizeof(port_recv));
       write(fds[i], &ip_recv, sizeof(ip_recv));
@@ -145,8 +145,8 @@ void logoff(int newsock, connected_list *connected_clients, int *fds){
   connected_node ** nodes_ptr = &(connected_clients->nodes);
   connected_node *tmp;
   char *msg;
-  uint16_t port_recv;
-  uint32_t ip_recv;
+  uint16_t port_recv, port;
+  uint32_t ip_recv, ip;
   int i;
 
   msg = (char*)calloc(13, sizeof(char));
@@ -167,6 +167,8 @@ void logoff(int newsock, connected_list *connected_clients, int *fds){
   {
     if (((**nodes_ptr).clientIP == ip_recv) && ((**nodes_ptr).clientPort == port_recv))
     {
+      port = (**nodes_ptr).clientPort;
+      ip = (**nodes_ptr).clientIP;
       tmp = *nodes_ptr;
       *nodes_ptr = tmp->next;
       free(tmp);
@@ -180,13 +182,13 @@ void logoff(int newsock, connected_list *connected_clients, int *fds){
   printf("Client: %d %d, has logged off.\n", port_recv, ip_recv);
 
   // Sending USER_OFF messages to every connected client
+  port_recv = htons(port);
+  ip_recv = htonl(ip);
   for (i = 0; i < MAX_CLIENTS; i++)
   {
     if ((fds[i] != 0) && (fds[i] != newsock))
     {
       // USER_OFF port, ip
-      port_recv = htons(port_recv);
-      ip_recv = htonl(ip_recv);
       write(fds[i], msg, 13);
       write(fds[i], &port_recv, sizeof(port_recv));
       write(fds[i], &ip_recv, sizeof(ip_recv));
