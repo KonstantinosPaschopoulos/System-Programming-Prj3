@@ -20,8 +20,6 @@
 #include "types.h"
 #include "client_functions.h"
 
-// TODO versions
-
 pthread_mutex_t mtx;
 pthread_mutex_t list_mtx;
 pthread_cond_t cond_nonempty;
@@ -223,61 +221,67 @@ void * worker(void *ptr){
       strcpy(input, "GET_FILE");
       write(sock, input, 13);
 
-      if ((strcmp(node.version, "-1") == 0))
+      // Checking if the file is stored localy
+      sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, node.pathname);
+      if (access(path, F_OK) != -1)
       {
-        // Asking for the client to send us the file
-        // TODO check if file is stored localy
-        memset(pathname, 0, 128);
-        strcpy(pathname, node.pathname);
+        // Find current version
         memset(num, 0, 12);
-        strcpy(num, node.version);
-        write(sock, pathname, 128);
-        write(sock, num, 12);
-
-        read(sock, reply, 15);
-        if (strcmp(reply, "FILE_SIZE") == 0)
-        {
-          // Create all the required directories and then create the file
-          sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
-          createfile(path);
-          sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
-          printf("%s\n", path);
-          fp = fopen(path, "w");
-          if (fp == NULL)
-          {
-            perror("Couldn't create the mirrored file");
-            exit(2);
-          }
-
-          // Start reading the bytes
-          read(sock, num, 12);
-
-          remaining = atoi(num);
-          while (remaining > 0)
-          {
-            read(sock, recv_b, 1);
-            fwrite(recv_b, sizeof(char), 1, fp);
-            remaining--;
-          }
-
-          fclose(fp);
-        }
-        else if (strcmp(reply, "FILE_NOT_FOUND"))
-        {
-          printf("GET_FILE error\n");
-          pthread_exit(0);
-        }
-        else if (strcmp(reply, "FILE_UP_TO_DATE"))
-        {
-          close(sock);
-          memset(input, 0, 13);
-          memset(reply, 0, 15);
-          continue;
-        }
+        sprintf(num, "%u", fileversion(path));
       }
       else
       {
-        // The file exists, checking the version
+        // Setting version as -1, because the file doesn't exist
+        memset(num, 0, 12);
+        strcpy(num, "-1");
+      }
+
+      // Asking for the client to send us the file
+      memset(pathname, 0, 128);
+      strcpy(pathname, node.pathname);
+      write(sock, pathname, 128);
+      write(sock, num, 12);
+
+      read(sock, reply, 15);
+      if (strcmp(reply, "FILE_SIZE") == 0)
+      {
+        // Create all the required directories and then create the file
+        sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
+        createfile(path);
+        sprintf(path, "%s/client_%s_%d/%s", mirrorDir, inet_ntoa(ip_addr), node.port, pathname);
+        printf("Receiving file: %s\n", path);
+        fp = fopen(path, "w");
+        if (fp == NULL)
+        {
+          perror("Couldn't create the mirrored file");
+          exit(2);
+        }
+
+        // Read current version
+        read(sock, num, 12);
+
+        // Start reading the bytes
+        memset(num, 0, 12);
+        read(sock, num, 12);
+
+        remaining = atoi(num);
+        while (remaining > 0)
+        {
+          read(sock, recv_b, 1);
+          fwrite(recv_b, sizeof(char), 1, fp);
+          remaining--;
+        }
+
+        fclose(fp);
+      }
+      else if (strcmp(reply, "FILE_NOT_FOUND") == 0)
+      {
+        printf("FILE_NOT_FOUND error\n");
+        pthread_exit(0);
+      }
+      else if (strcmp(reply, "FILE_UP_TO_DATE") == 0)
+      {
+        printf("Requested file: %s, is up to date\n", path);
       }
     }
 

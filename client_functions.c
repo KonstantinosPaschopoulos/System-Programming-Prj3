@@ -88,23 +88,21 @@ int count_files(char *input_dir){
 }
 
 void pathnames(char *input_dir, int fd){
-  int count = -1;
   DIR *dir;
   struct dirent *ent;
-  char *next_path, *count_str;
+  char *next_path, *version_str;
   next_path = (char*)calloc(128, sizeof(char));
   if (next_path == NULL)
   {
     perror("Calloc failed");
     exit(2);
   }
-  count_str = (char*)calloc(12, sizeof(char));
-  if (count_str == NULL)
+  version_str = (char*)calloc(12, sizeof(char));
+  if (version_str == NULL)
   {
     perror("Calloc failed");
     exit(2);
   }
-  sprintf(count_str, "%d", count);
 
   dir = opendir(input_dir);
   if (dir == NULL)
@@ -129,10 +127,11 @@ void pathnames(char *input_dir, int fd){
     }
     else
     {
-      // At first the client sends the version as -1
-      // to make the communication easier
+      // Sending pathname and file version
+      memset(version_str, 0, 12);
+      sprintf(version_str, "%u", fileversion(next_path));
       write(fd, next_path, 128);
-      write(fd, count_str, 12);
+      write(fd, version_str, 12);
     }
   }
 
@@ -142,11 +141,12 @@ void pathnames(char *input_dir, int fd){
     exit(2);
   }
   free(next_path);
-  free(count_str);
+  free(version_str);
 }
 
 void getfile(int fd, char *input_dir){
   char *pathname, *version, *correct_path, *buffer, *num, *send_b;
+  char checkvrs[12] = {0};
   int fileLength, n;
   FILE* fp = NULL;
   send_b = (char*)calloc(1, sizeof(char));
@@ -193,14 +193,19 @@ void getfile(int fd, char *input_dir){
   // Creating the correct path: inputDir/pathname
   sprintf(correct_path, "%s/%s", input_dir, pathname);
 
+  // Checking version of requested file
+  sprintf(checkvrs, "%u", fileversion(correct_path));
+
   // Checking if the file exists at all
   if (access(correct_path, F_OK) != -1)
   {
-    if (strcmp(version, "-1") == 0)
+    // Check if the client has the correct version of the file
+    if ((strcmp(version, checkvrs) != 0) || (strcmp(version, "-1") == 0))
     {
-      // Write FILE_LIST N
+      // Write FILE_SIZE version
       strcpy(buffer, "FILE_SIZE");
       write(fd, buffer, 15);
+      write(fd, checkvrs, 12);
 
       // Calculating and sending the size of the file
       fp = fopen(correct_path, "r");
@@ -213,6 +218,7 @@ void getfile(int fd, char *input_dir){
       fileLength = (int)ftell(fp);
       sprintf(num, "%d", fileLength);
 
+      // Sending the size of the file
       write(fd, num, 12);
 
       // Using fgets to read the file byte by byte and send it
@@ -226,7 +232,8 @@ void getfile(int fd, char *input_dir){
     }
     else
     {
-      // Checking the version of the local file
+      strcpy(buffer, "FILE_UP_TO_DATE");
+      write(fd, buffer, 15);
     }
   }
   else
@@ -322,4 +329,37 @@ void useroff(int sock, connected_list *connected_clients, pthread_mutex_t *mtx){
   pthread_mutex_unlock(mtx);
 
   printf("Disconnecting from client: %d %d.\n", port_net, ip_net);
+}
+
+// Using the Jenkins One At A Time Hash for the file version
+// Source: https://en.wikipedia.org/wiki/Jenkins_hash_function
+uint32_t fileversion(char *path){
+  uint32_t hash = 0, c, fileLength;
+  FILE *fp = NULL;
+
+  fp = fopen(path, "rb+");
+  if (fp == NULL)
+  {
+    perror("Could not open file");
+    exit(2);
+  }
+  fseek(fp, 0L, SEEK_END);
+  fileLength = (int)ftell(fp);
+  fseek(fp, 0L, SEEK_SET);
+
+  // Using fgetc to read the file byte by byte and calculate its hash/version
+  while (fileLength > 0)
+  {
+    c = fgetc(fp);
+    hash += c;
+    hash += (hash << 10);
+    hash ^= (hash >> 6);
+    fileLength--;
+  }
+
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+
+  return hash;
 }

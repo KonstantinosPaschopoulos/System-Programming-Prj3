@@ -13,3 +13,5 @@ void getfile(int, char *);
 void createfile(char *);
 // Responds to the USER_OFF message
 void useroff(int, connected_list *, pthread_mutex_t *);
+// Returns the version of a file
+uint32_t fileversion(char *);
