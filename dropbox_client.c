@@ -724,14 +724,6 @@ int main(int argc, char **argv){
     memset(input, 0, 13);
   }
 
-  printf("Loggin off.\n");
-
-  for (i = 0; i < workerThreads; i++)
-  {
-    // Maybe array?
-    // pthread_join(thr, 0);
-    // TODO join
-  }
   pthread_cond_destroy(&cond_nonempty);
   pthread_cond_destroy(&cond_nonfull);
   pthread_mutex_destroy(&mtx);
